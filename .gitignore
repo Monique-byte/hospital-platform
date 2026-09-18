@@ -1,0 +1,22 @@
+# Dependências
+node_modules/
+
+# Variáveis de ambiente
+.env
+.env.*
+!.env.example
+
+# Builds
+dist/
+build/
+coverage/
+
+# Prisma
+.prisma/
+
+# Logs
+*.log
+
+# Sistema
+.DS_Store
+Thumbs.db

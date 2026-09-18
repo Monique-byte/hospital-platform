@@ -1,0 +1,31 @@
+﻿{
+  "compilerOptions": {
+    "target": "ES2021",
+    /* Ajuste para resolver o erro de incompatibilidade */
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    
+    "lib": ["ES2021"],
+    "outDir": "dist",
+    
+    /* Ajustado para "./" para aceitar a pasta 'prisma' e 'src' ao mesmo tempo */
+    "rootDir": "./", 
+    
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "declaration": false,
+    "sourceMap": true,
+
+    /* 'baseUrl' removido para evitar o aviso de depreciação. 
+       Os caminhos abaixo agora apontam diretamente via ./src */
+    "paths": {
+      "@config/*": ["./src/config/*"],
+      "@core/*": ["./src/core/*"],
+      "@modules/*": ["./src/modules/*"]
+    }
+  },
+  "include": ["src/**/*", "prisma/**/*"]
+}

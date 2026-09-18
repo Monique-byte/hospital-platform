@@ -1,0 +1,30 @@
+﻿@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body, #root {
+  height: 100%;
+}
+body {
+  @apply bg-surface text-brand-900 antialiased;
+}
+
+/* Entrada suave para secoes/cards do portal publico - usada via
+   classes utilitarias arbitrarias do Tailwind, ex.:
+   className="animate-[fadeInUp_0.35s_ease-out]" */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* Scrollbar mais discreta no menu institucional mobile */
+.thin-scrollbar::-webkit-scrollbar { width: 6px; }
+.thin-scrollbar::-webkit-scrollbar-thumb { @apply bg-brand-200 rounded-full; }

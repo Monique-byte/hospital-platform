@@ -1,0 +1,553 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserStatus {
+  ATIVO
+  INATIVO
+  BLOQUEADO
+  PENDENTE
+}
+
+enum AuthProvider {
+  LOCAL
+  LDAP
+  SSO
+}
+
+model User {
+  id             String       @id @default(uuid())
+  name           String
+  email          String       @unique
+  login          String       @unique
+  passwordHash   String?
+  status         UserStatus   @default(PENDENTE)
+  authProvider   AuthProvider @default(LOCAL)
+  externalId     String?
+
+  mfaEnabled     Boolean      @default(false)
+  mfaSecret      String?
+
+  lastLoginAt    DateTime?
+  lastLoginIp    String?
+
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  roles          UserRole[]
+  sessions       Session[]
+  auditLogs      AuditLog[]
+  passwordResets PasswordReset[]
+
+  employee       Employee?
+
+  publicationsAuthored  Publication[] @relation("PublicationAuthor")
+  publicationsPublished Publication[] @relation("PublicationPublisher")
+
+  documentsAuthored        Document[]        @relation("DocumentAuthor")
+  documentVersionsAuthored DocumentVersion[] @relation("DocumentVersionAuthor")
+  documentTargets          DocumentTarget[]  @relation("DocumentTargetUser")
+
+  @@index([status])
+  @@index([authProvider])
+  @@map("users")
+}
+
+model PasswordReset {
+  id        String   @id @default(uuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("password_resets")
+}
+
+model Session {
+  id           String    @id @default(uuid())
+  userId       String
+  refreshToken String    @unique
+  userAgent    String?
+  ip           String?
+  createdAt    DateTime  @default(now())
+  expiresAt    DateTime
+  revokedAt    DateTime?
+
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+model Module {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  name        String
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  permissions Permission[]
+
+  @@map("modules")
+}
+
+model Action {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  name        String
+
+  permissions Permission[]
+
+  @@map("actions")
+}
+
+model Permission {
+  id        String   @id @default(uuid())
+  moduleId  String
+  actionId  String
+  createdAt DateTime @default(now())
+
+  module    Module   @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  action    Action   @relation(fields: [actionId], references: [id], onDelete: Cascade)
+
+  roles     RolePermission[]
+
+  @@unique([moduleId, actionId])
+  @@map("permissions")
+}
+
+model Role {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  name        String
+  description String?
+  isSystem    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users       UserRole[]
+  permissions RolePermission[]
+
+  @@map("roles")
+}
+
+model UserRole {
+  userId     String
+  roleId     String
+  assignedAt DateTime @default(now())
+
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role       Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, roleId])
+  @@map("user_roles")
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  userId      String?
+  action      String
+  moduleKey   String
+  entity      String?
+  entityId    String?
+  description String?
+  metadata    Json?
+  ip          String?
+  userAgent   String?
+  createdAt   DateTime @default(now())
+
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([moduleKey])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+enum LogLevel {
+  DEBUG
+  INFO
+  WARN
+  ERROR
+}
+
+model SystemLog {
+  id        String   @id @default(uuid())
+  level     LogLevel
+  message   String
+  context   String?
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  @@index([level])
+  @@index([createdAt])
+  @@map("system_logs")
+}
+
+model Unit {
+  id          String       @id @default(uuid())
+  key         String       @unique
+  name        String
+  address     String?
+  isActive    Boolean      @default(true)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+   departments Department[]
+  publicationTargets PublicationTarget[]
+  documentTargets DocumentTarget[]
+
+  @@map("units")
+}
+
+model Department {
+  id        String   @id @default(uuid())
+  unitId    String
+  name      String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  unit      Unit     @relation(fields: [unitId], references: [id], onDelete: Restrict)
+  sectors   Sector[]
+  publicationTargets PublicationTarget[]
+  documentTargets DocumentTarget[]
+
+  @@unique([unitId, name])
+  @@map("departments")
+}
+
+model Sector {
+  id           String     @id @default(uuid())
+  departmentId String
+  name         String
+  isActive     Boolean    @default(true)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  department   Department @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  employees    Employee[]
+  publicationTargets PublicationTarget[]
+  documentTargets DocumentTarget[]
+
+  @@unique([departmentId, name])
+  @@map("sectors")
+}
+
+model Position {
+  id        String     @id @default(uuid())
+  name      String     @unique
+  isActive  Boolean    @default(true)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  employees Employee[]
+  publicationTargets PublicationTarget[]
+  documentTargets DocumentTarget[]
+
+  @@map("positions")
+}
+
+enum EmployeeStatus {
+  ATIVO
+  INATIVO
+  AFASTADO
+}
+
+enum EmploymentType {
+  CLT
+  PJ
+  ESTAGIO
+  TERCEIRIZADO
+  COOPERADO
+}
+model Employee {
+  id                 String         @id @default(uuid())
+  userId             String?        @unique
+  fullName           String
+  socialName         String?
+  registrationNumber String         @unique
+  photoUrl           String?
+
+  admissionDate      DateTime
+  status             EmployeeStatus @default(ATIVO)
+  employmentType     EmploymentType
+
+  positionId         String
+  sectorId           String
+  managerId          String?
+
+  extension          String?
+  corporateEmail     String         @unique
+  corporatePhone     String?
+
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+
+  user               User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  position           Position      @relation(fields: [positionId], references: [id], onDelete: Restrict)
+  sector             Sector        @relation(fields: [sectorId], references: [id], onDelete: Restrict)
+  manager            Employee?     @relation("EmployeeManager", fields: [managerId], references: [id], onDelete: SetNull)
+  directReports      Employee[]    @relation("EmployeeManager")
+  restrictedData     EmployeeRestrictedData?
+
+  @@index([status])
+  @@index([sectorId])
+  @@index([positionId])
+  @@index([managerId])
+  @@map("employees")
+}
+
+model EmployeeRestrictedData {
+  id            String   @id @default(uuid())
+  employeeId    String   @unique
+  cpf           String   @unique
+  birthDate     DateTime
+  personalPhone String?
+  personalEmail String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  employee      Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@map("employee_restricted_data")
+}
+
+enum PublicationCategory {
+  NOTICIA
+  COMUNICADO
+  AVISO
+  EVENTO
+  CAMPANHA
+  INFORMATIVO
+}
+
+enum PublicationStatus {
+  RASCUNHO
+  AGENDADA
+  PUBLICADA
+  EXPIRADA
+  ARQUIVADA
+}
+
+enum PublicationTargetType {
+  TODOS
+  UNIDADE
+  DEPARTAMENTO
+  SETOR
+  CARGO
+  GRUPO
+}
+
+model Publication {
+  id               String              @id @default(uuid())
+  title            String
+  subtitle         String?
+  content          String              @db.Text
+  featuredImageUrl String?
+
+  category         PublicationCategory
+  status           PublicationStatus   @default(RASCUNHO)
+
+  authorId         String
+  publishedById    String?
+
+  scheduledAt      DateTime?
+  publishedAt      DateTime?
+  expiresAt        DateTime?
+  archivedAt       DateTime?
+
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+
+  author           User                @relation("PublicationAuthor", fields: [authorId], references: [id], onDelete: Restrict)
+  publishedBy      User?               @relation("PublicationPublisher", fields: [publishedById], references: [id], onDelete: SetNull)
+
+  attachments      PublicationAttachment[]
+  targets          PublicationTarget[]
+
+  @@index([status])
+  @@index([category])
+  @@index([publishedAt])
+  @@index([expiresAt])
+  @@index([authorId])
+  @@map("publications")
+}
+
+model PublicationAttachment {
+  id            String      @id @default(uuid())
+  publicationId String
+
+  originalName  String
+  storedName    String
+  mimeType      String
+  sizeBytes     Int
+  storagePath   String
+
+  createdAt     DateTime    @default(now())
+
+  publication   Publication @relation(fields: [publicationId], references: [id], onDelete: Cascade)
+
+  @@index([publicationId])
+  @@map("publication_attachments")
+}
+
+model PublicationTarget {
+  id            String                @id @default(uuid())
+  publicationId String
+  targetType    PublicationTargetType
+
+  unitId        String?
+  departmentId  String?
+  sectorId      String?
+  positionId    String?
+  groupKey      String?
+
+  createdAt     DateTime              @default(now())
+
+  publication   Publication @relation(fields: [publicationId], references: [id], onDelete: Cascade)
+  unit          Unit?                 @relation(fields: [unitId], references: [id], onDelete: Restrict)
+  department    Department?           @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  sector        Sector?               @relation(fields: [sectorId], references: [id], onDelete: Restrict)
+  position      Position?             @relation(fields: [positionId], references: [id], onDelete: Restrict)
+
+  @@index([publicationId])
+  @@index([targetType])
+  @@index([unitId])
+  @@index([departmentId])
+  @@index([sectorId])
+  @@index([positionId])
+  @@map("publication_targets")
+}
+
+model SystemSetting {
+  id        String   @id @default(uuid())
+  key       String   @unique
+  value     Json
+  scope     String   @default("global")
+  updatedAt DateTime @updatedAt
+
+  @@map("system_settings")
+}
+
+enum DocumentCategory {
+  POLITICA
+  PROCEDIMENTO
+  MANUAL
+  REGULAMENTO
+  FORMULARIO
+  COMUNICADO
+  NORMA
+  ADMINISTRATIVO
+}
+
+enum DocumentStatus {
+  ATIVO
+  ARQUIVADO
+}
+
+enum DocumentTargetType {
+  TODOS
+  UNIDADE
+  DEPARTAMENTO
+  SETOR
+  CARGO
+  GRUPO
+  USUARIO
+}
+
+model Document {
+  id          String            @id @default(uuid())
+  title       String
+  description String?
+  category    DocumentCategory
+  status      DocumentStatus    @default(ATIVO)
+  tags        String[]          @default([])
+
+  authorId    String
+  author      User              @relation("DocumentAuthor", fields: [authorId], references: [id])
+
+  currentVersionId String?       @unique
+  currentVersion   DocumentVersion? @relation("CurrentVersion", fields: [currentVersionId], references: [id])
+
+  versions    DocumentVersion[]  @relation("DocumentVersions")
+  targets     DocumentTarget[]
+
+  archivedAt  DateTime?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  @@index([status])
+  @@index([category])
+  @@map("documents")
+}
+
+model DocumentVersion {
+  id            String    @id @default(uuid())
+  documentId    String
+  document      Document  @relation("DocumentVersions", fields: [documentId], references: [id], onDelete: Cascade)
+
+  versionNumber Int
+  originalName  String
+  storedName    String
+  mimeType      String
+  sizeBytes     Int
+  storagePath   String
+  changeNote    String?
+
+  authorId      String
+  author        User      @relation("DocumentVersionAuthor", fields: [authorId], references: [id])
+
+  createdAt     DateTime  @default(now())
+
+  currentOf     Document? @relation("CurrentVersion")
+
+  @@unique([documentId, versionNumber])
+  @@map("document_versions")
+}
+
+model DocumentTarget {
+  id           String              @id @default(uuid())
+  documentId   String
+  document     Document            @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  targetType   DocumentTargetType
+
+  unitId       String?
+  unit         Unit?               @relation(fields: [unitId], references: [id])
+  departmentId String?
+  department   Department?         @relation(fields: [departmentId], references: [id])
+  sectorId     String?
+  sector       Sector?             @relation(fields: [sectorId], references: [id])
+  positionId   String?
+  position     Position?           @relation(fields: [positionId], references: [id])
+  groupKey     String?
+  targetUserId String?
+  targetUser   User?               @relation("DocumentTargetUser", fields: [targetUserId], references: [id])
+
+
+  @@index([documentId])
+  @@index([targetType])
+  @@map("document_targets")
+}
